@@ -1,0 +1,77 @@
+#!/bin/bash
+
+# Ensure the script stops on any errors
+set -e
+
+# Check if enough arguments are supplied
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <init|plan|apply> <location>"
+  exit 1
+fi
+
+# Assign the arguments to variables
+ACTION=$1
+LOCATION=$2
+BICEP_FILE="main.bicep"
+
+# Check if the Bicep file exists
+if [ ! -f "$BICEP_FILE" ]; then
+  echo "Error: $BICEP_FILE not found. Please make sure the file exists in the current directory."
+  exit 1
+fi
+
+# Common deployment name
+DEPLOYMENT_NAME="bicep-deployment-$(date +%s)"
+
+# Function to initialize (validate the Bicep file)
+init() {
+  echo "Initializing (validating) the Bicep file..."
+  az bicep build --file "$BICEP_FILE"
+  if [ $? -eq 0 ]; then
+    echo "Bicep file validated successfully."
+  else
+    echo "Bicep file validation failed."
+    exit 1
+  fi
+}
+
+# Function to plan (what-if analysis)
+plan() {
+  echo "Generating a plan (what-if analysis) for the deployment..."
+  az deployment sub what-if \
+    --location "$LOCATION" \
+    --name "$DEPLOYMENT_NAME" \
+    --template-file "$BICEP_FILE"
+}
+
+# Function to apply (deploy the Bicep file)
+apply() {
+  echo "Applying the Bicep file (deploying)..."
+  az deployment sub create \
+    --location "$LOCATION" \
+    --name "$DEPLOYMENT_NAME" \
+    --template-file "$BICEP_FILE"
+  if [ $? -eq 0 ]; then
+    echo "Deployment completed successfully."
+  else
+    echo "Deployment failed."
+    exit 1
+  fi
+}
+
+# Execute the appropriate function based on the first parameter
+case "$ACTION" in
+  init)
+    init
+    ;;
+  plan)
+    plan
+    ;;
+  apply)
+    apply
+    ;;
+  *)
+    echo "Invalid action. Use one of: init, plan, apply"
+    exit 1
+    ;;
+esac
